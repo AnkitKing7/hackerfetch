@@ -1,0 +1,314 @@
+#!/bin/bash
+# ╦ ╦╔═╗╔═╗╦╔═╔═╗╦═╗╔═╗╔═╗╔╦╗╔═╗╦ ╦
+# ╠═╣╠═╣║  ╠╩╗║╣ ╠╦╝╠╣ ║╣  ║ ║  ╠═╣
+# ╩ ╩╩ ╩╚═╝╩ ╩╚═╝╩╚═╚  ╚═╝ ╩ ╚═╝╩ ╩   Powered by AnkitCoder
+# hackerfetch - hacker-style neofetch with a hard binary circle and color themes
+export LC_ALL=C.UTF-8
+VERSION="1.0"
+AUTHOR="AnkitCoder"
+CONF=/etc/hackerfetch.conf
+
+THEME=""; ANIM=0; FULL=0; SAVE=0; REFRESH=0
+[ -r "$CONF" ] && . "$CONF"
+[ -r "$HOME/.hackerfetchrc" ] && . "$HOME/.hackerfetchrc"
+THEME=${HACKERFETCH_THEME:-$THEME}
+
+# ---------------- themes ----------------
+RB=(196 202 208 214 220 226 190 154 118 82 46 47 48 49 51 45 39 33 27 21 57 93 129 165 201)
+set_theme(){
+  RAINBOW=0
+  case "$1" in
+    blue)                 P1=39;  P2=33;  P3=25;  T=blue;;
+    red)                  P1=196; P2=160; P3=88;  T=red;;
+    cyan)                 P1=51;  P2=44;  P3=30;  T=cyan;;
+    purple|violet|magenta) P1=177; P2=135; P3=91;  T=purple;;
+    yellow|amber|gold)    P1=220; P2=178; P3=136; T=yellow;;
+    orange)               P1=208; P2=166; P3=130; T=orange;;
+    pink)                 P1=213; P2=170; P3=132; T=pink;;
+    white|mono|ghost)     P1=255; P2=248; P3=243; T=white;;
+    rainbow|all)          P1=46;  P2=40;  P3=28;  T=rainbow; RAINBOW=1;;
+    ""|green|matrix)      P1=46;  P2=34;  P3=28;  T=green;;
+    *) echo "unknown theme '$1' - using green (see: hackerfetch --list)" >&2
+                          P1=46;  P2=34;  P3=28;  T=green;;
+  esac
+}
+
+R=$'\e[0m'; B=$'\e[1m'; DM=$'\e[38;5;245m'; WH=$'\e[97m'
+ac(){ local c=$P1; ((RAINBOW)) && c=${RB[$(( ($1*2) % ${#RB[@]} ))]}; printf '\e[38;5;%dm' "$c"; }
+
+usage(){
+cat <<EOF
+hackerfetch $VERSION - Powered by $AUTHOR
+
+Usage: hackerfetch [theme] [options]
+
+Themes (colors):
+  --green (default)  --blue  --red  --cyan  --purple  --yellow
+  --orange  --pink  --white  --rainbow        or: --theme NAME
+
+Options:
+  --static     no animation (default for login banner)
+  --anim       typing + row-by-row animation
+  --full       show every detail section
+  --save       remember the chosen theme (/etc/hackerfetch.conf or ~/.hackerfetchrc)
+  --list       show all themes with color swatches
+  -v           version
+  -h           this help
+
+Examples:
+  hackerfetch --blue
+  hackerfetch --red --full
+  hackerfetch --rainbow --anim
+  sudo hackerfetch --purple --save
+EOF
+}
+list_themes(){
+  echo; echo "  Available themes:"; echo
+  for t in green blue red cyan purple yellow orange pink white rainbow; do
+    set_theme "$t"
+    printf '   %-8s ' "--$t"
+    if ((RAINBOW)); then for c in "${RB[@]}"; do printf '\e[38;5;%dm█' "$c"; done
+    else printf '\e[38;5;%dm████\e[38;5;%dm████\e[38;5;%dm████' "$P1" "$P2" "$P3"; fi
+    printf '%s\n' "$R"
+  done; echo
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --green|--matrix|--blue|--red|--cyan|--purple|--violet|--magenta|--yellow|--amber|--gold|--orange|--pink|--white|--mono|--ghost|--rainbow|--all) THEME=${1#--};;
+    --theme|-t|--color|-c) THEME=$2; shift;;
+    --anim) ANIM=1;; --static) ANIM=0;; --full) FULL=1;; --save) SAVE=1;;
+    --refresh) REFRESH=1;;
+    --list) list_themes; exit 0;;
+    -v|--version) echo "hackerfetch $VERSION - Powered by $AUTHOR"; exit 0;;
+    -h|--help) usage; exit 0;;
+  esac; shift
+done
+set_theme "$THEME"
+[ ! -t 1 ] && ANIM=0
+
+if ((SAVE)); then
+  if [ -w /etc ]; then F=$CONF; else F=$HOME/.hackerfetchrc; fi
+  echo "THEME=$T" > "$F" && echo "Theme '$T' saved to $F"
+  [ "$REFRESH" = 0 ] && exit 0
+fi
+
+# ---------------- cache (slow data in background) ----------------
+if [ -w /var/cache ] 2>/dev/null; then CACHE_DIR=/var/cache/hackerfetch; else CACHE_DIR=/tmp/.hackerfetch-$UID; fi
+CACHE=$CACHE_DIR/stats
+if ((REFRESH)); then
+  mkdir -p "$CACHE_DIR" 2>/dev/null || exit 0
+  J=$(curl -s --max-time 3 https://ipinfo.io/json 2>/dev/null)
+  jget(){ printf '%s' "$J" | grep -o "\"$1\": *\"[^\"]*\"" | head -1 | sed 's/.*: *"\(.*\)"/\1/'; }
+  PIP=$(jget ip); CITY=$(jget city); CC=$(jget country); ORG=$(jget org)
+  FAILSSH=$(journalctl -u ssh -u sshd --since "24 hours ago" -q --no-pager 2>/dev/null | grep -c "Failed password")
+  UPD=$(apt list --upgradable 2>/dev/null | grep -c upgradable)
+  if command -v ufw >/dev/null; then FWS=$(ufw status 2>/dev/null | head -1 | sed 's/Status: //'); else FWS="n/a"; fi
+  RB_=no; [ -f /var/run/reboot-required ] && RB_=yes
+  {
+    echo "PIP='${PIP:-offline}'"; echo "GEO='${CITY:+$CITY, }$CC'"; echo "ORG='$ORG'"
+    echo "FAILSSH='${FAILSSH:-0}'"; echo "UPD='${UPD:-0}'"; echo "FWS='${FWS:-n/a}'"; echo "RBT='$RB_'"
+  } > "$CACHE.tmp" && mv "$CACHE.tmp" "$CACHE"
+  exit 0
+fi
+PIP="..."; GEO=""; ORG=""; FAILSSH="-"; UPD="-"; FWS="-"; RBT=no
+[ -r "$CACHE" ] && . "$CACHE"
+if [ ! -s "$CACHE" ] || [ $(( $(date +%s) - $(stat -c %Y "$CACHE" 2>/dev/null || echo 0) )) -gt 1800 ]; then
+  ( "$0" --refresh >/dev/null 2>&1 </dev/null & )
+fi
+
+# ---------------- helpers ----------------
+bar(){
+  local p=$1 f i col; ((p>100)) && p=100; f=$((p/10))
+  for ((i=0;i<10;i++)); do
+    if ((i<f)); then
+      if ((p>=85)); then col=196; elif ((p>=60 && !RAINBOW && T!=red)); then col=214; else col=$P1; fi
+      ((RAINBOW)) && ((p<85)) && col=${RB[$((i*2+4))]}
+      printf '\e[38;5;%sm▰' "$col"
+    else printf '\e[38;5;238m▱'; fi
+  done
+  printf '%s %3d%%' "$R" "$p"
+}
+hb(){ awk -v b="$1" 'BEGIN{split("B K M G T",u," ");i=1;while(b>=1024&&i<5){b/=1024;i++}printf "%.1f%s",b,u[i]}'; }
+lab(){ # lab index name  (last row uses └─)
+  local pre="├─"; [ "$1" = "L" ] && pre="└─"
+  local idx=$2
+  printf '%s%s %s%s%-7s%s' "$(ac $idx)" "$pre" "$B" "$(ac $idx)" "$3" "$R"
+}
+
+# ---------------- gather (fast) ----------------
+OS=$(. /etc/os-release; echo "$PRETTY_NAME")
+KER=$(uname -r)
+UP=$(uptime -p | sed 's/^up //; s/ hours\?/h/; s/ minutes\?/m/; s/ days\?/d/; s/ weeks\?/w/; s/,//g')
+CORES=$(nproc)
+read -r _ u1 n1 s1 i1 w1 q1 sq1 _ < /proc/stat; sleep 0.25
+read -r _ u2 n2 s2 i2 w2 q2 sq2 _ < /proc/stat
+dt=$(( (u2+n2+s2+i2+w2+q2+sq2)-(u1+n1+s1+i1+w1+q1+sq1) )); di=$(( (i2+w2)-(i1+w1) ))
+CP=$(( dt>0 ? (dt-di)*100/dt : 0 ))
+LOAD=$(awk '{print $1}' /proc/loadavg)
+read -r MT MU <<<"$(free -m | awk '/Mem:/{print $2,$3}')"; MP=$((MU*100/MT))
+MEMH=$(free -h | awk '/Mem:/{print $3"/"$2}')
+DP=$(df / --output=pcent | tail -1 | tr -dc 0-9)
+DISKH=$(df -h / | awk 'NR==2{print $3"/"$2}')
+IF=$(ip route show default 2>/dev/null | awk '{print $5; exit}')
+RX=$(cat /sys/class/net/$IF/statistics/rx_bytes 2>/dev/null || echo 0)
+TX=$(cat /sys/class/net/$IF/statistics/tx_bytes 2>/dev/null || echo 0)
+LIP=$(hostname -I 2>/dev/null | awk '{print $1}')
+PORTS=$(ss -tuln 2>/dev/null | tail -n +2 | wc -l)
+FAILED=$(systemctl --failed --no-legend 2>/dev/null | wc -l)
+if command -v docker >/dev/null && docker info >/dev/null 2>&1; then DK="$(docker ps -q | wc -l)/$(docker ps -aq | wc -l)"; else DK="-"; fi
+F2B=$(systemctl is-active fail2ban 2>/dev/null); [ "$F2B" = active ] && F2B=on || F2B=off
+LAST=$(last -w -a -n 3 2>/dev/null | grep -vE '^(reboot|wtmp|$)' | sed -n 2p | awk '{printf "%s from %s",$1,$NF}')
+LAST=${LAST:-first login}
+HN=$(hostname); HNS=${HN:0:16}
+NOW=$(TZ=Asia/Kolkata date '+%d %b %H:%M IST')
+
+# ---------------- hard circle art ----------------
+art_rows(){
+  awk -v p1=$P1 -v p2=$P2 -v p3=$P3 -v rb="${RB[*]}" -v rainbow=$RAINBOW -v seed="$(date +%s%N | cut -c1-9)" '
+  BEGIN{
+    srand(seed); n=split(rb,RB," ")
+    split("╔|═|═|═|═|═|═|═|╗",T1,"|"); split("║| |r|o|o|t|#| |║",T2,"|"); split("╚|═|═|═|═|═|═|═|╝",T3,"|")
+    for(y=-6;y<=6;y++){
+      ry=y+7
+      if(rainbow){ c1=RB[((ry-1)*2)%n+1]; c2=c1; c3=c1 } else { c1=p1; c2=p2; c3=p3 }
+      out=""
+      for(i=-13;i<=13;i++){
+        d=sqrt((i/2.0)*(i/2.0)+y*y)
+        if(d>6.5){ out=out " "; continue }
+        if(y>=-1 && y<=1 && i>=-4 && i<=4){
+          k=i+5
+          if(y==-1) t=T1[k]; else if(y==0) t=T2[k]; else t=T3[k]
+          out=out sprintf("\033[1;38;5;%d;48;5;16m%s\033[0m", c1, t); continue
+        }
+        if(d>5.8)      out=out sprintf("\033[1;38;5;%dm█\033[0m", c1)
+        else if(d>5.2) out=out sprintf("\033[38;5;%dm▓\033[0m", c2)
+        else {
+          r=rand(); ch=(rand()<0.5)?"0":"1"
+          if(r<0.08) out=out sprintf("\033[1;38;5;%dm%s\033[0m", c1, ch)
+          else       out=out sprintf("\033[38;5;%dm%s\033[0m", c3, ch)
+        }
+      }
+      print out
+    }
+  }'
+}
+mapfile -t ART < <(art_rows)
+
+# ---------------- info (13 compact lines) ----------------
+HDR="$(ac 0)┌─[$R$WH$B$(whoami)$R$(ac 0)@$HNS]─[$R${LIP:-n/a}$(ac 0)]$R"
+INFO=(
+"$HDR"
+"$(lab 1 1 os)$OS"
+"$(lab 2 2 kernel)$KER ${DM}· up$R $UP"
+"$(lab 3 3 cpu)$(bar $CP) ${DM}${CORES}c·$R$LOAD"
+"$(lab 4 4 ram)$(bar $MP) ${DM}$MEMH$R"
+"$(lab 5 5 disk)$(bar $DP) ${DM}$DISKH$R"
+"$(lab 6 6 net)${IF:-n/a} ${DM}↓$R$(hb $RX) ${DM}↑$R$(hb $TX)"
+"$(lab 7 7 pub-ip)$PIP ${DM}$GEO$R"
+"$(lab 8 8 ports)$PORTS open ${DM}· fw$R $FWS"
+"$(lab 9 9 threat)${DM}ssh-fail$R $FAILSSH ${DM}· f2b$R $F2B"
+"$(lab 10 10 docker)$DK ${DM}· updates$R $UPD ${DM}· failed$R $FAILED"
+"$(lab 11 11 login)$(printf '%s' "$LAST" | cut -c1-34)"
+"$(lab L 12 time)$NOW ${DM}[$R$(ac 12)ONLINE$R${DM}]$R"
+)
+
+BADGE=$'\e[30;48;5;'$P1'm'; ((RAINBOW)) && BADGE=$'\e[30;48;5;46m'
+NAMEC=$(ac 6); ((RAINBOW)) && NAMEC=$'\e[38;5;201m'
+FOOT="  $B${BADGE} HACKERFETCH $R ${DM}v$VERSION · $T · Powered by$R $B${NAMEC}$AUTHOR$R"
+
+render(){
+  local d=$1 i
+  for i in $(seq 0 12); do
+    printf '  %s   %s\n' "${ART[i]}" "${INFO[i]}"
+    [ "$d" != 0 ] && sleep "$d"
+  done
+}
+
+# ---------------- full details ----------------
+SECN=0
+sec(){ SECN=$((SECN+1)); printf '\n  %s%s▌ %s %s%s\n' "$(ac $((SECN*2)))" "$B" "$1" "$(printf '─%.0s' $(seq 1 $((58-${#1}))))" "$R"; }
+kv(){ printf '  %s%-15s%s %s\n' "$DM" "$1" "$R" "$2"; }
+full_details(){
+  CPU=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs)
+  if command -v nvidia-smi >/dev/null; then GPU=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
+  elif command -v lspci >/dev/null; then GPU=$(lspci | grep -iE 'vga|3d|display' | head -1 | cut -d: -f3- | xargs); fi
+  GPU=${GPU:-None / virtual}
+  sec "HARDWARE"
+  kv "cpu" "$CPU"
+  kv "cores/threads" "$(lscpu 2>/dev/null | awk -F: '/^Core\(s\) per socket/{c=$2}/^Socket\(s\)/{s=$2}/^CPU\(s\):/{t=$2}END{gsub(/ /,"",c);gsub(/ /,"",s);gsub(/ /,"",t);print c*s" cores / "t" threads"}')"
+  kv "arch" "$(uname -m)"
+  kv "ram" "$(free -h | awk '/Mem:/{print $2" (used "$3", free "$4", cache "$6")"}')"
+  kv "swap" "$(free -h | awk '/Swap:/{print $2" (used "$3")"}')"
+  kv "gpu" "$GPU"
+  kv "board/bios" "$(cat /sys/devices/virtual/dmi/id/board_name 2>/dev/null || echo n/a)  $(cat /sys/devices/virtual/dmi/id/bios_version 2>/dev/null)"
+  kv "virt" "$(systemd-detect-virt 2>/dev/null || echo none)"
+
+  sec "DISKS"
+  df -hT -x tmpfs -x devtmpfs -x squashfs -x overlay -x fuse.rclone 2>/dev/null | awk 'NR==1{printf "  %-22s %-8s %6s %6s %6s %5s\n",$1,$2,$3,$4,$5,$6} NR>1{printf "  %-22s %-8s %6s %6s %6s %5s  %s\n",$1,$2,$3,$4,$5,$6,$7}'
+  command -v lsblk >/dev/null && { echo; lsblk -o NAME,SIZE,TYPE,MOUNTPOINT 2>/dev/null | sed 's/^/  /'; }
+
+  sec "NETWORK"
+  ip -brief addr 2>/dev/null | awk '{printf "  %-14s %-8s %s %s\n",$1,$2,$3,$4}'
+  kv "gateway" "$(ip route 2>/dev/null | awk '/default/{print $3; exit}')"
+  kv "dns" "$(awk '/^nameserver/{printf "%s ",$2}' /etc/resolv.conf)"
+  kv "public ip" "$PIP  $GEO"
+  kv "isp" "${ORG:-n/a}"
+  kv "tcp established" "$(ss -tn state established 2>/dev/null | tail -n +2 | wc -l)"
+
+  sec "LISTENING PORTS"
+  printf '  %s%-6s %-26s %s%s\n' "$DM" "PROTO" "ADDRESS" "PROCESS" "$R"
+  ss -tulnpH 2>/dev/null | awk '{p=$NF; sub(/.*users:\(\("/,"",p); sub(/".*/,"",p); printf "  %-6s %-26s %s\n",$1,$5,p}' | sort -u | head -15
+
+  sec "TOP PROCESSES"
+  printf '  %s%-18s %6s %6s%s\n' "$DM" "COMMAND" "CPU%" "MEM%" "$R"
+  ps -eo comm,%cpu,%mem --sort=-%cpu --no-headers | head -5 | awk '{printf "  %-18s %6s %6s\n",$1,$2,$3}'
+  echo "  ${DM}-- by memory --${R}"
+  ps -eo comm,%cpu,%mem --sort=-%mem --no-headers | head -5 | awk '{printf "  %-18s %6s %6s\n",$1,$2,$3}'
+
+  sec "USERS & LOGINS"
+  who 2>/dev/null | awk '{printf "  now: %s from %s (%s %s)\n",$1,$5,$3,$4}'
+  last -n 5 -a -w 2>/dev/null | grep -vE '^(reboot|wtmp|$)' | head -5 | sed 's/^/  /'
+  kv "ssh fails 24h" "$FAILSSH"
+  kv "sudo group" "$(getent group sudo | cut -d: -f4)"
+
+  sec "SECURITY"
+  kv "firewall (ufw)" "$FWS"
+  kv "fail2ban" "$(systemctl is-active fail2ban 2>/dev/null || echo not-installed)"
+  kv "root login" "$(sshd -T 2>/dev/null | awk '/^permitrootlogin/{print $2}')"
+  kv "password auth" "$(sshd -T 2>/dev/null | awk '/^passwordauthentication/{print $2}')"
+  kv "ssh port" "$(sshd -T 2>/dev/null | awk '/^port /{print $2; exit}')"
+  kv "pending updates" "$UPD   (reboot required: $RBT)"
+  kv "failed units" "$FAILED"
+
+  sec "DOCKER"
+  if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+    kv "version" "$(docker --version | cut -d, -f1)"
+    kv "images" "$(docker images -q | wc -l)"
+    docker ps --format '  {{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null | column -t -s $'\t' | head -10
+  else kv "docker" "not installed / not running"; fi
+
+  sec "SYSTEM"
+  kv "hostname" "$(hostname -f 2>/dev/null || hostname)"
+  kv "timezone" "$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null)"
+  kv "boot time" "$(uptime -s 2>/dev/null)"
+  kv "load avg" "$(awk '{print $1", "$2", "$3}' /proc/loadavg)  (cores: $CORES)"
+  kv "processes" "$(ps -e --no-headers | wc -l) total, $(ps -eo stat --no-headers | grep -c '^Z') zombie"
+  kv "open files" "$(awk '{print $1}' /proc/sys/fs/file-nr) / $(cat /proc/sys/fs/file-max)"
+  kv "entropy" "$(cat /proc/sys/kernel/random/entropy_avail 2>/dev/null)"
+  echo
+}
+
+# ---------------- output ----------------
+echo
+if ((ANIM)); then
+  printf '\e[?25l'; trap 'printf "\e[?25h"' EXIT
+  p="$(ac 0)$(whoami)@$HNS$R:~# "
+  printf '  %s' "$p"; for w in "hackerfetch" "--$T"; do for ((k=0;k<${#w};k++)); do printf '%s' "${w:k:1}"; sleep 0.03; done; printf ' '; done; echo; sleep 0.2; echo
+  render 0.05
+else
+  render 0
+fi
+printf '\n%s\n\n' "$FOOT"
+((FULL)) && full_details
+exit 0
