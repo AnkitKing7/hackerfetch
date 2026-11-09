@@ -352,3 +352,18 @@ Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 **HackerFetch · Powered by AnkitCoder**
 
 </div>
+[![Screenshot 1](https://i.postimg.cc/pp6Z6Trw/Screenshot-2026-11-10-01-07-41-25-61c78dc80ee02b53007c815fefe993e3.jpg)](https://postimg.cc/pp6Z6Trw)
+
+[![Screenshot 2](https://i.postimg.cc/JsHqVLHf/Screenshot-2026-11-10-01-09-00-40-61c78dc80ee02b53007c815fefe993e3.jpg)](https://postimg.cc/JsHqVLHf)
+
+[![Screenshot 3](https://i.postimg.cc/75JV8kTy/Screenshot-2026-11-10-01-09-39-81-61c78dc80ee02b53007c815fefe993e3.jpg)](https://postimg.cc/75JV8kTy)
+
+[![Screenshot 4](https://i.postimg.cc/NK24qcrv/Screenshot-2026-11-10-01-09-51-35-61c78dc80ee02b53007c815fefe993e3.jpg)](https://postimg.cc/NK24qcrv)
+
+[![Screenshot 5](https://i.postimg.cc/k2Rc3mt9/Screenshot-2026-11-10-01-10-12-56-61c78dc80ee02b53007c815fefe993e3.jpg)](https://postimg.cc/k2Rc3mt9)
+
+[![Screenshot 6](https://i.postimg.cc/fVSKnN0z/Screenshot-2026-11-10-01-10-18-73-61c78dc80ee02b53007c815fefe993e3.jpg)](https://postimg.cc/fVSKnN0z)
+
+[![Screenshot 7](https://i.postimg.cc/hXQrWB7v/Screenshot-2026-11-10-01-10-23-16-61c78dc80ee02b53007c815fefe993e3.jpg)](https://postimg.cc/hXQrWB7v)
+
+[![Screenshot 8](https://i.postimg.cc/k2Rc3mt4/Screenshot-2026-11-10-01-11-03-94-61c78dc80ee02b53007c815fefe993e3.jpg)](https://postimg.cc/k2Rc3mt4)
